@@ -1,0 +1,90 @@
+{
+  "settings": {
+    "startDate": "2025-08-01",
+    "intervals": [
+      1,
+      2,
+      4,
+      8,
+      16,
+      32,
+      64
+    ],
+    "theme": "system",
+    "version": 2
+  },
+  "levels": [
+    {
+      "level": 1,
+      "nextDue": "2025-08-09",
+      "lastCompleted": "2025-08-08"
+    },
+    {
+      "level": 2,
+      "nextDue": "2025-08-07",
+      "lastCompleted": "2025-08-05"
+    },
+    {
+      "level": 3,
+      "nextDue": "2025-08-06",
+      "lastCompleted": "2025-08-02"
+    },
+    {
+      "level": 4,
+      "nextDue": "2025-08-11",
+      "lastCompleted": null
+    },
+    {
+      "level": 5,
+      "nextDue": "2025-08-17",
+      "lastCompleted": null
+    },
+    {
+      "level": 6,
+      "nextDue": "2025-08-29",
+      "lastCompleted": null
+    },
+    {
+      "level": 7,
+      "nextDue": "2025-09-30",
+      "lastCompleted": null
+    }
+  ],
+  "log": [
+    {
+      "date": "2025-08-01",
+      "level": 1,
+      "action": "completed"
+    },
+    {
+      "date": "2025-08-02",
+      "level": 1,
+      "action": "completed"
+    },
+    {
+      "date": "2025-08-02",
+      "level": 3,
+      "action": "completed"
+    },
+    {
+      "date": "2025-08-03",
+      "level": 1,
+      "action": "completed"
+    },
+    {
+      "date": "2025-08-05",
+      "level": 1,
+      "action": "completed"
+    },
+    {
+      "date": "2025-08-05",
+      "level": 2,
+      "action": "completed"
+    },
+    {
+      "date": "2025-08-08",
+      "level": 1,
+      "action": "completed"
+    }
+  ]
+}

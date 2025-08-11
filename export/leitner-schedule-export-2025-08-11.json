@@ -1,0 +1,54 @@
+{
+  "settings": {
+    "startDate": "2025-08-11",
+    "intervals": [
+      1,
+      2,
+      4,
+      8,
+      16,
+      32,
+      64
+    ],
+    "theme": "system",
+    "version": 2
+  },
+  "levels": [
+    {
+      "level": 1,
+      "nextDue": "2025-08-11",
+      "lastCompleted": null
+    },
+    {
+      "level": 2,
+      "nextDue": "2025-08-12",
+      "lastCompleted": null
+    },
+    {
+      "level": 3,
+      "nextDue": "2025-08-14",
+      "lastCompleted": null
+    },
+    {
+      "level": 4,
+      "nextDue": "2025-08-18",
+      "lastCompleted": null
+    },
+    {
+      "level": 5,
+      "nextDue": "2025-08-26",
+      "lastCompleted": null
+    },
+    {
+      "level": 6,
+      "nextDue": "2025-09-11",
+      "lastCompleted": null
+    },
+    {
+      "level": 7,
+      "nextDue": "2025-10-13",
+      "lastCompleted": null
+    }
+  ],
+  "log": []
+}

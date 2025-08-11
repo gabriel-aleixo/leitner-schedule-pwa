@@ -18,11 +18,7 @@
       <span class="app-title">Leitner Schedule</span>
       <span id="dayCounter" class="muted"></span>
     </div>
-    <div class="header-actions">
-      <button id="reviewBtn" class="primary" hidden>Start reviews</button>
-      <button id="backlogBtn" class="warning" hidden>Start backlog</button>
-      <button id="settingsBtn" aria-label="Open settings">⚙️</button>
-    </div>
+    <button id="settingsBtn" class="settings-only" aria-label="Open settings">⚙️</button>
   </header>
 
   <main class="container">
@@ -56,6 +52,13 @@
       <div id="emptyToday" class="muted" hidden>You're all caught up.</div>
     </section>
   </main>
+
+  <footer class="app-footer">
+    <div class="footer-actions">
+      <button id="reviewBtn" class="primary" hidden>Start reviews</button>
+      <button id="backlogBtn" class="warning" hidden>Start backlog</button>
+    </div>
+  </footer>
 
   <!-- Settings modal -->
   <dialog id="settingsDialog">

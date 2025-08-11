@@ -27,6 +27,7 @@
     resetBtn: document.getElementById('resetBtn'),
     exportBtn: document.getElementById('exportBtn'),
     importInput: document.getElementById('importInput'),
+    appFooter: document.querySelector('.app-footer'),
   };
 
   // Templates
@@ -151,6 +152,20 @@
     els.backlogBtn.hidden = true;
     els.reviewBtn.hidden = true;
     els.dayCounter.textContent = '';
+    updateFooterVisibility();
+  }
+
+  function updateFooterVisibility() {
+    // Show footer if any action button is visible
+    const hasVisibleActions = !els.reviewBtn.hidden || !els.backlogBtn.hidden;
+    
+    if (hasVisibleActions) {
+      els.appFooter.classList.add('show');
+      document.body.classList.add('has-footer-actions');
+    } else {
+      els.appFooter.classList.remove('show');
+      document.body.classList.remove('has-footer-actions');
+    }
   }
 
   function renderHeader() {
@@ -158,6 +173,7 @@
       els.dayCounter.textContent = '';
       els.reviewBtn.hidden = true;
       els.backlogBtn.hidden = true;
+      updateFooterVisibility();
       return;
     }
     const start = state.settings.startDate;
@@ -173,6 +189,8 @@
       els.backlogBtn.hidden = true;
       els.reviewBtn.hidden = !anyDueToday();
     }
+    
+    updateFooterVisibility();
   }
 
   function renderStatus() {
