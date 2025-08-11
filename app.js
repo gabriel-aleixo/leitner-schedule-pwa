@@ -3,12 +3,13 @@
 
   const STORAGE_KEY = 'leitnerScheduleV2';
   const INTERVALS = [1, 2, 4, 8, 16, 32, 64]; // for levels 1..7
+  const CURRENT_VERSION = 2;
 
   // Elements
   const els = {
     dayCounter: document.getElementById('dayCounter'),
     reviewBtn: document.getElementById('reviewBtn'),
-    backlogBtn: document.getElementById('backlogBtn'),
+
     settingsBtn: document.getElementById('settingsBtn'),
     welcome: document.getElementById('welcome'),
     startScheduleBtn: document.getElementById('startScheduleBtn'),
@@ -22,6 +23,8 @@
     sessionStopBtn: document.getElementById('sessionStopBtn'),
     sessionNextDayBtn: document.getElementById('sessionNextDayBtn'),
     sessionFinishBtn: document.getElementById('sessionFinishBtn'),
+    sessionProgress: document.getElementById('sessionProgress'),
+    sessionType: document.getElementById('sessionType'),
     settingsDialog: document.getElementById('settingsDialog'),
     themeSelect: document.getElementById('themeSelect'),
     resetBtn: document.getElementById('resetBtn'),
@@ -37,28 +40,31 @@
   // State
   let state = null; // { settings, levels, log }
   let activeSessionDate = null; // YYYY-MM-DD when processing a day
+  let activeReviewQueue = []; // Array of dates in chronological order for current review session
 
   // --- Date helpers ---
   function toDate(str) {
     const [y,m,d] = str.split('-').map(Number);
-    const dt = new Date(y, m - 1, d);
-    dt.setHours(0,0,0,0);
+    // Use UTC to avoid timezone issues during DST transitions
+    const dt = new Date(Date.UTC(y, m - 1, d));
     return dt;
   }
   function fmtDate(dt) {
-    const y = dt.getFullYear();
-    const m = String(dt.getMonth()+1).padStart(2,'0');
-    const d = String(dt.getDate()).padStart(2,'0');
+    // Use UTC methods to ensure consistent date formatting
+    const y = dt.getUTCFullYear();
+    const m = String(dt.getUTCMonth()+1).padStart(2,'0');
+    const d = String(dt.getUTCDate()).padStart(2,'0');
     return `${y}-${m}-${d}`;
   }
   function todayStr() {
-    const dt = new Date();
-    dt.setHours(0,0,0,0);
+    // Get local date but format as UTC to maintain consistency
+    const now = new Date();
+    const dt = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
     return fmtDate(dt);
   }
   function addDays(dateStr, days) {
     const dt = toDate(dateStr);
-    dt.setDate(dt.getDate() + days);
+    dt.setUTCDate(dt.getUTCDate() + days);
     return fmtDate(dt);
   }
   function diffDays(aStr, bStr) {
@@ -67,11 +73,63 @@
   }
 
   // --- Storage ---
+  function validateState(data) {
+    if (!data || typeof data !== 'object') return false;
+    if (!data.settings || typeof data.settings !== 'object') return false;
+    if (!Array.isArray(data.levels)) return false;
+    if (!Array.isArray(data.log)) return false;
+    
+    // Validate settings
+    const { settings } = data;
+    if (typeof settings.startDate !== 'string' && settings.startDate !== null) return false;
+    if (!Array.isArray(settings.intervals)) return false;
+    if (settings.intervals.length !== 7) return false;
+    if (!settings.intervals.every(i => typeof i === 'number' && i > 0)) return false;
+    
+    // Validate levels
+    if (data.levels.length !== 7) return false;
+    for (const level of data.levels) {
+      if (typeof level.level !== 'number' || level.level < 1 || level.level > 7) return false;
+      if (typeof level.nextDue !== 'string') return false;
+      if (level.lastCompleted !== null && typeof level.lastCompleted !== 'string') return false;
+    }
+    
+    // Validate log entries
+    for (const entry of data.log) {
+      if (typeof entry.date !== 'string') return false;
+      if (typeof entry.level !== 'number' || entry.level < 1 || entry.level > 7) return false;
+      if (typeof entry.ts !== 'number') return false;
+      if (typeof entry.action !== 'string') return false;
+    }
+    
+    return true;
+  }
+
+  function migrateState(data) {
+    if (!data || !data.settings) return data;
+    
+    const currentVersion = data.settings.version || 1;
+    if (currentVersion >= CURRENT_VERSION) return data;
+    
+    // Migration from v1 to v2: add originalDue to log entries if missing
+    if (currentVersion < 2) {
+      data.log = data.log.map(entry => ({
+        ...entry,
+        originalDue: entry.originalDue || entry.date // Default to entry date if missing
+      }));
+      data.settings.version = 2;
+    }
+    
+    return data;
+  }
+
   function load() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     try {
-      return JSON.parse(raw);
+      let data = JSON.parse(raw);
+      data = migrateState(data);
+      return validateState(data) ? data : null;
     } catch {
       return null;
     }
@@ -81,6 +139,70 @@
   }
   function wipe() {
     localStorage.removeItem(STORAGE_KEY);
+  }
+
+  // --- State Management Helpers ---
+  function markLevelCompleted(levelNumber, sessionDate) {
+    const level = state.levels.find(lv => lv.level === levelNumber);
+    if (!level) return false;
+    
+    const interval = state.settings.intervals[levelNumber - 1];
+    const originalDue = level.nextDue;
+    
+    level.lastCompleted = sessionDate;
+    level.nextDue = addDays(sessionDate, interval);
+    
+    state.log.push({
+      date: sessionDate,
+      level: levelNumber,
+      ts: Date.now(),
+      action: 'done',
+      originalDue
+    });
+    
+    return true;
+  }
+  
+  function undoLevelCompletion(levelNumber, sessionDate) {
+    const level = state.levels.find(lv => lv.level === levelNumber);
+    if (!level) return false;
+    
+    // Find the most recent completion log for this level/date
+    const logEntries = state.log.filter(entry => 
+      entry.date === sessionDate && 
+      entry.level === levelNumber && 
+      entry.action === 'done'
+    ).sort((a, b) => b.ts - a.ts); // Most recent first
+    
+    if (logEntries.length > 0) {
+      const latestEntry = logEntries[0];
+      // Restore original due date from log
+      level.nextDue = latestEntry.originalDue || sessionDate;
+      level.lastCompleted = null;
+      
+      // Remove the log entry
+      const logIndex = state.log.indexOf(latestEntry);
+      if (logIndex !== -1) {
+        state.log.splice(logIndex, 1);
+      }
+      return true;
+    }
+    
+    return false;
+  }
+
+  // --- Rendering Optimization ---
+  let renderTimeout = null;
+  function scheduleRender() {
+    if (renderTimeout) return; // Already scheduled
+    
+    renderTimeout = requestAnimationFrame(() => {
+      renderHeader();
+      renderStatus();
+      renderBoard();
+      checkSessionCompletion();
+      renderTimeout = null;
+    });
   }
 
   // --- Theme ---
@@ -115,7 +237,7 @@
         startDate: start,
         intervals: INTERVALS.slice(),
         theme: 'system',
-        version: 2
+        version: CURRENT_VERSION
       },
       levels,
       log: []
@@ -134,6 +256,19 @@
     });
     return Array.from(set).sort();
   }
+  
+  function getReviewQueue() {
+    const backlogDates = getBacklogDates();
+    const today = todayStr();
+    const queue = [...backlogDates];
+    
+    // Add today if it has due levels and isn't already in backlog
+    if (anyDueToday() && !backlogDates.includes(today)) {
+      queue.push(today);
+    }
+    
+    return queue.sort(); // Chronological order
+  }
   function getDueTodayLevels(forDate) {
     const date = forDate || todayStr();
     return state.levels.filter(lv => lv.nextDue === date);
@@ -149,7 +284,6 @@
     els.board.hidden = true;
     els.status.hidden = true;
     els.sessionPanel.hidden = true;
-    els.backlogBtn.hidden = true;
     els.reviewBtn.hidden = true;
     els.dayCounter.textContent = '';
     updateFooterVisibility();
@@ -157,7 +291,7 @@
 
   function updateFooterVisibility() {
     // Show footer if any action button is visible
-    const hasVisibleActions = !els.reviewBtn.hidden || !els.backlogBtn.hidden;
+    const hasVisibleActions = !els.reviewBtn.hidden;
     
     if (hasVisibleActions) {
       els.appFooter.classList.add('show');
@@ -172,7 +306,6 @@
     if (!state || !state.settings.startDate) {
       els.dayCounter.textContent = '';
       els.reviewBtn.hidden = true;
-      els.backlogBtn.hidden = true;
       updateFooterVisibility();
       return;
     }
@@ -181,14 +314,9 @@
     const dayN = diffDays(start, today) + 1;
     els.dayCounter.textContent = `Today: ${today} — Day ${dayN}`;
 
-    const backlog = getBacklogDates();
-    if (backlog.length > 0) {
-      els.backlogBtn.hidden = false;
-      els.reviewBtn.hidden = true;
-    } else {
-      els.backlogBtn.hidden = true;
-      els.reviewBtn.hidden = !anyDueToday();
-    }
+    // Single button logic - show if there are any reviews (backlog or current)
+    const hasReviews = anyDueToday() || getBacklogDates().length > 0;
+    els.reviewBtn.hidden = !hasReviews;
     
     updateFooterVisibility();
   }
@@ -236,10 +364,20 @@
     els.emptyToday.hidden = anyDueToday();
   }
 
-  function renderSession(date) {
+  function renderUnifiedSession() {
+    const date = activeSessionDate;
     els.sessionPanel.hidden = false;
     els.sessionTitle.textContent = `Review for ${date}`;
     els.sessionLevels.innerHTML = '';
+
+    // Update progress indicator
+    const currentIndex = activeReviewQueue.indexOf(date);
+    const totalDays = activeReviewQueue.length;
+    const isBacklog = date < todayStr();
+    
+    els.sessionProgress.textContent = `Day ${currentIndex + 1} of ${totalDays}`;
+    els.sessionType.textContent = isBacklog ? 'Backlog' : 'Current';
+    els.sessionType.className = `session-type-badge ${isBacklog ? 'backlog' : 'current'}`;
 
     const dueLevels = state.levels.filter(lv => lv.nextDue === date).sort((a,b)=>a.level-b.level);
     const tpl = sessionLevelTpl.content;
@@ -247,53 +385,108 @@
     if (dueLevels.length === 0) {
       // Nothing due for that date -> show Finish/Next Day only
       els.sessionFinishBtn.hidden = false;
-      els.sessionNextDayBtn.hidden = getBacklogDates().filter(d => d !== date).length === 0;
+      els.sessionNextDayBtn.hidden = currentIndex + 1 >= totalDays;
       return;
     }
 
     dueLevels.forEach(lv => {
       const node = tpl.cloneNode(true);
       node.querySelector('.level-number').textContent = String(lv.level);
-      const btn = node.querySelector('.markBtn');
+      const markBtn = node.querySelector('.markBtn');
+      const undoBtn = node.querySelector('.undoBtn');
       const doneTag = node.querySelector('.doneTag');
 
       const alreadyDone = (lv.lastCompleted === date);
       if (alreadyDone) {
-        btn.disabled = true;
-        btn.textContent = 'Marked';
+        markBtn.hidden = true;
+        undoBtn.hidden = false;
         doneTag.hidden = false;
+      } else {
+        markBtn.hidden = false;
+        undoBtn.hidden = true;
+        doneTag.hidden = true;
       }
 
-      btn.addEventListener('click', () => {
-        // Mark done -> advance nextDue by interval for this level
-        const interval = state.settings.intervals[lv.level - 1];
-        lv.lastCompleted = date;
-        lv.nextDue = addDays(date, interval);
-        state.log.push({ date, level: lv.level, ts: Date.now(), action: 'done' });
-        save();
+      // Mark done functionality
+      markBtn.addEventListener('click', () => {
+        if (markLevelCompleted(lv.level, date)) {
+          save();
+          
+          markBtn.hidden = true;
+          undoBtn.hidden = false;
+          doneTag.hidden = false;
 
-        btn.disabled = true;
-        btn.textContent = 'Marked';
-        doneTag.hidden = false;
-
-        // If all due levels are now marked, show next actions
-        const remaining = state.levels.filter(x => x.nextDue === date && x.lastCompleted !== date);
-        if (remaining.length === 0) {
-          els.sessionNextDayBtn.hidden = getBacklogDates().filter(d => d !== date).length === 0 && todayStr() !== date;
-          els.sessionFinishBtn.hidden = !(todayStr() === date || getBacklogDates().filter(d => d !== date).length === 0);
+          scheduleRender();
         }
-        renderBoard();
-        renderStatus();
-        renderHeader();
+      });
+
+      // Undo functionality
+      undoBtn.addEventListener('click', () => {
+        if (undoLevelCompletion(lv.level, date)) {
+          save();
+          
+          markBtn.hidden = false;
+          undoBtn.hidden = true;
+          doneTag.hidden = true;
+
+          scheduleRender();
+        }
       });
 
       els.sessionLevels.appendChild(node);
     });
+    
+    checkSessionCompletion();
 
-    // Show nav actions depending on what's left
+  }
+  
+  function checkSessionCompletion() {
+    const date = activeSessionDate;
+    const currentIndex = activeReviewQueue.indexOf(date);
+    const totalDays = activeReviewQueue.length;
+    
+    // Check if all levels for current date are completed
     const remaining = state.levels.filter(x => x.nextDue === date && x.lastCompleted !== date);
-    els.sessionNextDayBtn.hidden = remaining.length > 0 || getBacklogDates().filter(d => d !== date).length === 0;
-    els.sessionFinishBtn.hidden = remaining.length > 0;
+    const allCompleted = remaining.length === 0;
+    
+    if (allCompleted) {
+      // Show next day button if more dates in queue
+      els.sessionNextDayBtn.hidden = currentIndex + 1 >= totalDays;
+      // Show finish button if this is the last date or no more dates
+      els.sessionFinishBtn.hidden = currentIndex + 1 < totalDays;
+    } else {
+      // Hide both buttons if current date is not complete
+      els.sessionNextDayBtn.hidden = true;
+      els.sessionFinishBtn.hidden = true;
+    }
+  }
+  
+  function moveToNextReviewDate() {
+    const currentIndex = activeReviewQueue.indexOf(activeSessionDate);
+    
+    if (currentIndex + 1 < activeReviewQueue.length) {
+      activeSessionDate = activeReviewQueue[currentIndex + 1];
+      renderUnifiedSession();
+    } else {
+      // All reviews complete
+      finishAllReviews();
+    }
+  }
+  
+  function finishAllReviews() {
+    activeSessionDate = null;
+    activeReviewQueue = [];
+    els.sessionPanel.hidden = true;
+    render();
+  }
+  
+  function startUnifiedReview() {
+    const queue = getReviewQueue();
+    if (queue.length === 0) return;
+    
+    activeSessionDate = queue[0];
+    activeReviewQueue = queue;
+    renderUnifiedSession();
   }
 
   function render() {
@@ -310,6 +503,7 @@
     els.sessionFinishBtn.hidden = true;
     els.sessionNextDayBtn.hidden = true;
   }
+  
 
   // --- Handlers ---
   els.startScheduleBtn?.addEventListener('click', initNewSchedule);
@@ -338,10 +532,15 @@
     const a = document.createElement('a');
     a.href = url;
     a.download = `leitner-schedule-export-${todayStr()}.json`;
+    
+    // Use timeout to ensure download starts before cleanup
     document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 100);
   });
 
   els.importInput?.addEventListener('change', async (e) => {
@@ -349,8 +548,9 @@
     if (!file) return;
     try {
       const text = await file.text();
-      const data = JSON.parse(text);
-      if (!data?.settings || !data?.levels) throw new Error('Invalid file');
+      let data = JSON.parse(text);
+      data = migrateState(data); // Apply migrations to imported data
+      if (!validateState(data)) throw new Error('Invalid or corrupted schedule file');
       state = data;
       save();
       applyTheme(state.settings.theme || 'system');
@@ -363,44 +563,20 @@
     }
   });
 
-  els.backlogBtn?.addEventListener('click', () => {
-    const backlog = getBacklogDates();
-    if (backlog.length === 0) return;
-    activeSessionDate = backlog[0];
-    els.sessionPanel.hidden = false;
-    renderSession(activeSessionDate);
-  });
-
   els.reviewBtn?.addEventListener('click', () => {
-    const today = todayStr();
-    if (getDueTodayLevels(today).length === 0) return;
-    activeSessionDate = today;
-    renderSession(activeSessionDate);
+    startUnifiedReview();
   });
 
   els.sessionStopBtn?.addEventListener('click', () => {
-    activeSessionDate = null;
-    els.sessionPanel.hidden = true;
+    finishAllReviews();
   });
 
   els.sessionNextDayBtn?.addEventListener('click', () => {
-    // Move to the next backlog date
-    const backlog = getBacklogDates();
-    const remaining = backlog.filter(d => d !== activeSessionDate);
-    if (remaining.length > 0) {
-      activeSessionDate = remaining[0];
-      renderSession(activeSessionDate);
-    } else {
-      // If none left, hide session
-      activeSessionDate = null;
-      els.sessionPanel.hidden = true;
-    }
+    moveToNextReviewDate();
   });
 
   els.sessionFinishBtn?.addEventListener('click', () => {
-    activeSessionDate = null;
-    els.sessionPanel.hidden = true;
-    render();
+    finishAllReviews();
   });
 
   // On load, set theme select
@@ -416,7 +592,7 @@
       renderStatus();
       renderBoard();
       if (activeSessionDate) {
-        renderSession(activeSessionDate);
+        renderUnifiedSession();
       }
     }
   });
