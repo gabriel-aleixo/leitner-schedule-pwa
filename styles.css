@@ -1,245 +1,145 @@
-/* Reset */
+/* Basic reset */
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
-
-/* -------------------------------------------------------
-   Theme Tokens — soft, positive, minimalist palette
--------------------------------------------------------- */
 :root {
   --bg: #0b1220;
   --card: #0f172a;
-  --text: #e7ecf2;
-  --muted: #98a2b3;
-  --primary: #22c55e;   /* action */
-  --primary-weak: rgba(34,197,94,0.12);
-  --warning: #f59e0b;   /* backlog */
-  --warning-weak: rgba(245,158,11,0.12);
-  --success: #10b981;   /* done tags */
-  --success-weak: rgba(16,185,129,0.14);
+  --text: #e5e7eb;
+  --muted: #9ca3af;
+  --primary: #22c55e;
+  --warning: #f59e0b;
   --danger: #ef4444;
   --border: #1f2937;
-  --ring: #60a5fa;
-  --shadow: 0 6px 24px rgba(0,0,0,0.18), 0 2px 6px rgba(0,0,0,0.1);
 }
-
-/* Light theme */
+/* Light theme tokens */
 html[data-theme="light"] {
-  --bg: #f7f9fc;
+  --bg: #f8fafc;
   --card: #ffffff;
   --text: #0f172a;
-  --muted: #667085;
+  --muted: #64748b;
   --primary: #16a34a;
-  --primary-weak: rgba(22,163,74,0.10);
   --warning: #d97706;
-  --warning-weak: rgba(217,119,6,0.10);
-  --success: #059669;
-  --success-weak: rgba(5,150,105,0.10);
   --danger: #dc2626;
-  --border: #e6e9ef;
-  --ring: #3b82f6;
-  --shadow: 0 8px 24px rgba(2,6,23,0.06), 0 1px 3px rgba(2,6,23,0.08);
+  --border: #e2e8f0;
 }
-
 /* System (follow prefers-color-scheme) */
 @media (prefers-color-scheme: light) {
   html[data-theme="system"] {
-    --bg: #f7f9fc;
+    --bg: #f8fafc;
     --card: #ffffff;
     --text: #0f172a;
-    --muted: #667085;
+    --muted: #64748b;
     --primary: #16a34a;
-    --primary-weak: rgba(22,163,74,0.10);
     --warning: #d97706;
-    --warning-weak: rgba(217,119,6,0.10);
-    --success: #059669;
-    --success-weak: rgba(5,150,105,0.10);
     --danger: #dc2626;
-    --border: #e6e9ef;
-    --ring: #3b82f6;
-    --shadow: 0 8px 24px rgba(2,6,23,0.06), 0 1px 3px rgba(2,6,23,0.08);
+    --border: #e2e8f0;
   }
 }
-
-/* -------------------------------------------------------
-   Base Typography & Layout
--------------------------------------------------------- */
 body {
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif;
   background: var(--bg);
   color: var(--text);
-  line-height: 1.55;
-  letter-spacing: 0.1px;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.5;
 }
-
 .app-header {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 8px;
+  display: flex;
+  justify-content: space-between;
   align-items: center;
   padding: 12px 16px;
   border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
   background: var(--bg);
-  z-index: 20;
-  backdrop-filter: saturate(1.1) blur(6px);
+  z-index: 10;
 }
-
-.brand { display: flex; gap: 10px; align-items: baseline; min-width: 0; }
-.app-title { font-weight: 700; letter-spacing: .2px; font-size: 16px; }
+.brand { display: flex; gap: 12px; align-items: baseline; }
+.app-title { font-weight: 700; letter-spacing: 0.2px; }
 .muted { color: var(--muted); }
-
 .header-actions { display: flex; gap: 8px; align-items: center; }
 
-/* Mobile prominence: float actions at bottom for small screens */
-@media (max-width: 720px) {
-  .header-actions {
-    position: fixed;
-    left: 0; right: 0; bottom: 8px;
-    margin: 0 auto;
-    padding: 8px 12px;
-    justify-content: center;
-    gap: 10px;
-    z-index: 30;
-    pointer-events: none; /* container ignores taps… */
-  }
-  .header-actions > button {
-    pointer-events: auto; /* …but buttons are tappable */
-  }
-}
-
 .container {
-  max-width: 920px;
-  margin: 20px auto 80px; /* extra space for mobile sticky actions */
+  max-width: 900px;
+  margin: 24px auto;
   padding: 0 16px;
 }
 
 .card {
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 16px;
-  margin-bottom: 14px;
-  box-shadow: var(--shadow);
-}
-
-/* Softer, less "urgent" banner for backlog */
-.banner {
-  background: var(--warning-weak);
-  border: 1px solid rgba(0,0,0,0);
-  color: var(--text);
   border-radius: 12px;
-  padding: 12px 14px;
-  margin-bottom: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 0 rgba(0,0,0,.05);
 }
 
-/* -------------------------------------------------------
-   Grid & Tiles
--------------------------------------------------------- */
+.banner {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
 .levels-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(156px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 12px;
 }
 
 .level-tile {
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 10px;
   padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  background:
-    linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0)) /* gentle glassy feel */;
-  transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+  gap: 8px;
+  background: transparent;
 }
-
-.level-tile:hover {
-  transform: translateY(-1px);
-}
-
-.level-head { display:flex; align-items:center; justify-content: space-between; gap: 8px; }
-
+.level-head { display:flex; align-items:center; justify-content: space-between; }
 .level-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
+  font-weight: 700;
   border-radius: 999px;
-  padding: 4px 10px;
+  padding: 4px 8px;
   border: 1px solid var(--border);
-  min-width: 42px;
-  height: 32px;
 }
-
-/* "Due today" gets a soft highlight chip */
 .due-badge {
   font-size: 12px;
-  padding: 4px 8px;
+  padding: 2px 6px;
   border-radius: 999px;
-  background: var(--primary-weak);
-  color: var(--primary);
-  border: 1px solid rgba(0,0,0,0);
+  border: 1px dashed var(--warning);
+  color: var(--warning);
 }
 
 .level-body .label { font-size: 12px; color: var(--muted); }
 .level-body .value { font-variant-numeric: tabular-nums; }
 
-/* When due today, tint the tile border slightly */
-.level-tile:has(.due-badge:not([hidden])) {
-  border-color: rgba(34,197,94,0.35);
-  box-shadow: 0 0 0 1px rgba(34,197,94,0.18) inset;
-}
-
-/* -------------------------------------------------------
-   Session Panel
--------------------------------------------------------- */
 .session-header { display:flex; align-items:center; justify-content: space-between; gap: 8px; }
 .session-actions { display:flex; gap: 8px; }
 
 .session-level {
   display:flex; align-items:center; justify-content: space-between;
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 12px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0));
-  transition: border-color .12s ease;
+  border-radius: 10px;
+  padding: 10px 12px;
 }
 .session-level + .session-level { margin-top: 10px; }
 
-.session-level .left { display:flex; align-items:center; gap: 10px; }
-.session-level .right { display:flex; align-items:center; gap: 8px; }
-.doneTag {
-  background: var(--success-weak);
-  color: var(--success);
-  border-radius: 999px;
-  padding: 4px 8px;
-  font-size: 12px;
-}
+.doneTag { color: var(--muted); }
 
-/* -------------------------------------------------------
-   Buttons — large, inviting, accessible
--------------------------------------------------------- */
 button {
   appearance: none;
   border: 1px solid var(--border);
   background: transparent;
   color: var(--text);
-  padding: 12px 14px;
-  min-height: 44px;           /* mobile tap target */
-  border-radius: 12px;
+  padding: 8px 12px;
+  border-radius: 10px;
   cursor: pointer;
-  font-weight: 700;
-  font-size: 14px;
-  transition: transform .06s ease, box-shadow .12s ease, background-color .12s ease, border-color .12s ease, opacity .12s ease;
-  will-change: transform;
+  font-weight: 600;
 }
-button:active { transform: translateY(1px); }
-button:hover { border-color: rgba(0,0,0,0); }
-
 button.primary {
   background: var(--primary);
   color: white;
@@ -247,7 +147,7 @@ button.primary {
 }
 button.warning {
   background: var(--warning);
-  color: #111827;
+  color: black;
   border-color: transparent;
 }
 button.danger {
@@ -255,64 +155,18 @@ button.danger {
   color: white;
   border-color: transparent;
 }
-button:disabled { opacity: .6; cursor: not-allowed; }
-
-/* Stronger prominence for the main actions on mobile */
-@media (max-width: 720px) {
-  .header-actions > button {
-    flex: 1 1 auto;
-    max-width: 220px;
-    box-shadow: var(--shadow);
-  }
-  /* Make "Mark done" easy to hit */
-  .session-level .right > .markBtn {
-    min-width: 44%;
-  }
+button:disabled {
+  opacity: .6; cursor: not-allowed;
 }
 
-/* -------------------------------------------------------
-   Fields & Dialog
--------------------------------------------------------- */
 .field { display:flex; align-items:center; justify-content: space-between; gap: 12px; }
 .settings-form { min-width: 280px; }
 .settings-actions { display:flex; gap: 8px; align-items:center; }
 .file-btn {
   border: 1px solid var(--border);
-  padding: 8px 12px;
-  border-radius: 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
   cursor: pointer;
 }
 
-/* -------------------------------------------------------
-   Utilities & Details
--------------------------------------------------------- */
 hr { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
-
-/* Empty state — calmer tone */
-#emptyToday { color: var(--muted); padding: 6px 2px; }
-
-/* Day counter refined */
-#dayCounter { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-/* Focus visibility for accessibility */
-:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-  border-radius: 12px;
-}
-
-/* Reduce motion preference */
-@media (prefers-reduced-motion: reduce) {
-  * { transition: none !important; }
-}
-
-/* Small screens typography adjustments */
-@media (max-width: 420px) {
-  .app-title { font-size: 15px; }
-  .levels-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-
-/* Slightly larger screens */
-@media (min-width: 421px) and (max-width: 720px) {
-  .levels-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
