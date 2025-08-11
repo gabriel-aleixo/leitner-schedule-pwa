@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0f172a" />
+  <title>Leitner Schedule</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icons/icon-192.png" sizes="192x192">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <span class="app-title">Leitner Schedule</span>
+      <span id="dayCounter" class="muted"></span>
+    </div>
+    <div class="header-actions">
+      <button id="reviewBtn" class="primary" hidden>Start reviews</button>
+      <button id="backlogBtn" class="warning" hidden>Start backlog</button>
+      <button id="settingsBtn" aria-label="Open settings">⚙️</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- Welcome (first run) -->
+    <section id="welcome" class="card" hidden>
+      <h1>Welcome</h1>
+      <p>This app tracks which levels of your <strong>physical Leitner box</strong> you should review each day.</p>
+      <button id="startScheduleBtn" class="primary">Start new schedule</button>
+    </section>
+
+    <!-- Status / Backlog banner -->
+    <section id="status" class="banner" hidden></section>
+
+    <!-- Session panel (active date being processed) -->
+    <section id="sessionPanel" class="card" hidden>
+      <div class="session-header">
+        <h2 id="sessionTitle">Review for —</h2>
+        <div class="session-actions">
+          <button id="sessionStopBtn">Stop</button>
+          <button id="sessionNextDayBtn" class="primary" hidden>Next day ▶</button>
+          <button id="sessionFinishBtn" class="primary" hidden>Finish</button>
+        </div>
+      </div>
+      <div id="sessionLevels" class="levels-grid"></div>
+    </section>
+
+    <!-- Board (overview of levels) -->
+    <section id="board" class="card" hidden>
+      <h2>Schedule</h2>
+      <div id="levelsGrid" class="levels-grid"></div>
+      <div id="emptyToday" class="muted" hidden>You're all caught up.</div>
+    </section>
+  </main>
+
+  <!-- Settings modal -->
+  <dialog id="settingsDialog">
+    <form method="dialog" class="settings-form">
+      <h3>Settings</h3>
+      <label class="field">
+        <span>Theme</span>
+        <select id="themeSelect">
+          <option value="system">System</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </label>
+
+      <div class="settings-actions">
+        <button id="exportBtn" type="button">Export JSON</button>
+        <label class="file-btn">
+          Import JSON
+          <input id="importInput" type="file" accept="application/json" hidden>
+        </label>
+      </div>
+
+      <hr />
+
+      <button id="resetBtn" class="danger" type="button">Reset schedule…</button>
+      <menu>
+        <button value="cancel">Close</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <template id="levelTileTemplate">
+    <div class="level-tile">
+      <div class="level-head">
+        <span class="level-badge">L<span class="level-number"></span></span>
+        <span class="due-badge" hidden>Due today</span>
+      </div>
+      <div class="level-body">
+        <div class="dates">
+          <div class="label">Next due</div>
+          <div class="value next-due"></div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <template id="sessionLevelTemplate">
+    <div class="session-level">
+      <div class="left">
+        <span class="level-badge">L<span class="level-number"></span></span>
+        <span class="muted">Due</span>
+      </div>
+      <div class="right">
+        <button class="markBtn primary">Mark done</button>
+        <span class="doneTag" hidden>Done</span>
+      </div>
+    </div>
+  </template>
+
+  <script src="/app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>
