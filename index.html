@@ -31,22 +31,27 @@
 
     <!-- Status / Backlog banner -->
     <section id="status" class="banner" hidden></section>
+    
+    <!-- Success message -->
+    <section id="successMessage" class="success-banner" hidden></section>
 
     <!-- Session panel (active date being processed) -->
-    <section id="sessionPanel" class="card" hidden>
+    <section id="sessionPanel" class="card session-card" hidden>
       <div class="session-header">
         <h2 id="sessionTitle">Review for —</h2>
         <div class="session-progress">
           <span id="sessionProgress">Day 1 of 1</span>
           <span id="sessionType" class="session-type-badge">Current</span>
-        </div>
-        <div class="session-actions">
-          <button id="sessionStopBtn">Cancel</button>
-          <button id="sessionNextDayBtn" class="primary" hidden>Next day ▶</button>
-          <button id="sessionFinishBtn" class="primary" hidden>Finish ✓</button>
+          <span id="sessionSubtitle" class="session-subtitle" hidden></span>
         </div>
       </div>
-      <div id="sessionLevels" class="levels-grid"></div>
+      
+      <div id="sessionLevels" class="session-levels-list"></div>
+      
+      <div class="session-footer">
+        <button id="sessionFinishBtn" class="finish-for-now-btn">Finish for now</button>
+        <button id="sessionNextBtn" class="primary next-btn" disabled>Next ▶</button>
+      </div>
     </section>
 
     <!-- Board (overview of levels) -->
@@ -109,15 +114,12 @@
   </template>
 
   <template id="sessionLevelTemplate">
-    <div class="session-level">
-      <div class="left">
-        <span class="level-badge">L<span class="level-number"></span></span>
-        <span class="muted">Due</span>
-      </div>
-      <div class="right">
-        <button class="markBtn primary">Mark done</button>
-        <button class="undoBtn" hidden>Undo</button>
-        <span class="doneTag" hidden>Done</span>
+    <div class="session-level-item">
+      <span class="level-badge">L<span class="level-number"></span></span>
+      <button class="markBtn primary mark-done-btn">Mark done</button>
+      <div class="level-done-state" hidden>
+        <span class="done-checkmark">✓</span>
+        <button class="undoBtn undo-btn">⟲</button>
       </div>
     </div>
   </template>

@@ -255,6 +255,30 @@ body.has-footer-actions {
   backdrop-filter: blur(8px);
 }
 
+.success-banner {
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 24px;
+  backdrop-filter: blur(8px);
+  text-align: center;
+  font-weight: 500;
+  animation: fadeInSlide 0.5s ease-out;
+}
+
+@keyframes fadeInSlide {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @media (max-width: 768px) {
   .banner {
     padding: 14px 16px;
@@ -297,6 +321,27 @@ body.has-footer-actions {
 .level-tile:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Heatmap color coding for level tiles */
+.level-tile.overdue {
+  border-color: var(--danger);
+  box-shadow: 0 1px 3px rgba(239, 68, 68, 0.2);
+}
+
+.level-tile.due-today {
+  border-color: var(--warning);
+  box-shadow: 0 1px 3px rgba(245, 158, 11, 0.2);
+}
+
+.level-tile.due-soon {
+  border-color: rgba(245, 158, 11, 0.5);
+  box-shadow: 0 1px 3px rgba(245, 158, 11, 0.1);
+}
+
+.level-tile.future {
+  border-color: var(--primary);
+  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.1);
 }
 
 @media (max-width: 768px) {
@@ -348,12 +393,17 @@ body.has-footer-actions {
 .level-body .label { font-size: 12px; color: var(--muted); }
 .level-body .value { font-variant-numeric: tabular-nums; }
 
+.session-card {
+  position: relative;
+}
+
 .session-header { 
   display: flex; 
   align-items: center; 
   justify-content: space-between; 
   gap: 12px; 
   flex-wrap: wrap;
+  margin-bottom: 24px;
 }
 
 .session-progress {
@@ -363,6 +413,13 @@ body.has-footer-actions {
   gap: 4px;
   font-size: 14px;
   text-align: center;
+}
+
+.session-subtitle {
+  font-size: 12px;
+  color: var(--muted);
+  font-style: italic;
+  margin-top: 4px;
 }
 
 .session-type-badge {
@@ -385,10 +442,34 @@ body.has-footer-actions {
   border-color: rgba(16, 185, 129, 0.3);
 }
 
-.session-actions { 
-  display: flex; 
-  gap: 8px; 
-  flex-shrink: 0;
+.session-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  position: relative;
+}
+
+.finish-for-now-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.finish-for-now-btn:hover:not(:disabled) {
+  background: var(--surface);
+}
+
+.next-btn {
+  position: absolute;
+  right: 0;
+}
+
+.next-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 @media (max-width: 768px) {
@@ -402,35 +483,90 @@ body.has-footer-actions {
     order: -1;
   }
   
-  .session-actions {
-    justify-content: center;
+  .session-footer {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .next-btn {
+    position: static;
+    order: -1;
+    width: 100%;
+  }
+  
+  .finish-for-now-btn {
+    width: 100%;
   }
 }
 
-.session-level {
+.session-levels-list {
+  margin-bottom: 32px;
+}
+
+.session-level-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 16px;
-  background: var(--card);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
   min-height: 60px;
 }
 
-.session-level + .session-level {
-  margin-top: 12px;
+.session-level-item:last-child {
+  border-bottom: none;
+}
+
+.session-level-item .level-badge {
+  flex-shrink: 0;
+  font-size: 14px;
+  padding: 8px 12px;
+  min-width: 40px;
+}
+
+.mark-done-btn {
+  margin-left: auto;
+  min-width: 100px;
+}
+
+.level-done-state {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.done-checkmark {
+  color: var(--primary);
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.undo-btn {
+  background: transparent;
+  border: 1px solid var(--muted);
+  color: var(--muted);
+  padding: 6px 10px;
+  font-size: 16px;
+  min-height: 32px;
+  min-width: 32px;
+  border-radius: 8px;
+}
+
+.undo-btn:hover:not(:disabled) {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border-light);
 }
 
 @media (max-width: 768px) {
-  .session-level {
-    padding: 14px;
+  .session-level-item {
+    padding: 14px 0;
     min-height: 56px;
+    gap: 12px;
   }
   
-  .session-level + .session-level {
-    margin-top: 10px;
+  .mark-done-btn {
+    min-width: 90px;
   }
 }
 

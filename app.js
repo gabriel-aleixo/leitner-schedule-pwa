@@ -14,17 +14,18 @@
     welcome: document.getElementById('welcome'),
     startScheduleBtn: document.getElementById('startScheduleBtn'),
     status: document.getElementById('status'),
+    successMessage: document.getElementById('successMessage'),
     board: document.getElementById('board'),
     levelsGrid: document.getElementById('levelsGrid'),
     emptyToday: document.getElementById('emptyToday'),
     sessionPanel: document.getElementById('sessionPanel'),
     sessionTitle: document.getElementById('sessionTitle'),
     sessionLevels: document.getElementById('sessionLevels'),
-    sessionStopBtn: document.getElementById('sessionStopBtn'),
-    sessionNextDayBtn: document.getElementById('sessionNextDayBtn'),
     sessionFinishBtn: document.getElementById('sessionFinishBtn'),
+    sessionNextBtn: document.getElementById('sessionNextBtn'),
     sessionProgress: document.getElementById('sessionProgress'),
     sessionType: document.getElementById('sessionType'),
+    sessionSubtitle: document.getElementById('sessionSubtitle'),
     settingsDialog: document.getElementById('settingsDialog'),
     themeSelect: document.getElementById('themeSelect'),
     resetBtn: document.getElementById('resetBtn'),
@@ -70,6 +71,28 @@
   function diffDays(aStr, bStr) {
     const a = toDate(aStr), b = toDate(bStr);
     return Math.round((b - a) / (1000*60*60*24));
+  }
+  function formatRelativeDate(dateStr) {
+    const today = todayStr();
+    const daysDiff = diffDays(today, dateStr);
+    
+    if (daysDiff === 0) return 'Today';
+    if (daysDiff === 1) return 'Tomorrow';
+    if (daysDiff === -1) return 'Yesterday';
+    if (daysDiff > 1) return `In ${daysDiff} days`;
+    if (daysDiff < -1) return `${Math.abs(daysDiff)} days ago`;
+    
+    return dateStr; // fallback
+  }
+  
+  function getHeatmapClass(dateStr) {
+    const today = todayStr();
+    const daysDiff = diffDays(today, dateStr);
+    
+    if (daysDiff < 0) return 'overdue'; // Past due
+    if (daysDiff === 0) return 'due-today'; // Due today
+    if (daysDiff <= 3) return 'due-soon'; // Due within 3 days
+    return 'future'; // Further in the future
   }
 
   // --- Storage ---
@@ -191,6 +214,15 @@
     return false;
   }
 
+  // --- Success Messages ---
+  function showSuccessMessage(text, duration = 4000) {
+    els.successMessage.textContent = text;
+    els.successMessage.hidden = false;
+    setTimeout(() => {
+      els.successMessage.hidden = true;
+    }, duration);
+  }
+  
   // --- Rendering Optimization ---
   let renderTimeout = null;
   function scheduleRender() {
@@ -245,6 +277,9 @@
     save();
     applyTheme('system');
     render();
+    
+    // Show success message
+    showSuccessMessage('Schedule created. First review due today.');
   }
 
   // --- Backlog & Due computation ---
@@ -328,7 +363,7 @@
       const oldest = backlog[0];
       const days = backlog.length;
       els.status.hidden = false;
-      els.status.textContent = `Backlog: ${days} day${days>1?'s':''} pending (oldest: ${oldest}).`;
+      els.status.textContent = `You have ${days} day${days>1?'s':''} pending. Start from oldest: ${oldest}.`;
     } else {
       // Show a gentle status: either due levels today or all caught up
       const due = getDueTodayLevels(today);
@@ -338,7 +373,7 @@
         els.status.textContent = `Due today: ${list}.`;
       } else {
         els.status.hidden = false;
-        els.status.textContent = `You're all caught up. Next due dates are shown below.`;
+        els.status.textContent = `All caught up.`;
       }
     }
   }
@@ -350,8 +385,15 @@
     const today = todayStr();
     state.levels.forEach(lv => {
       const node = tpl.cloneNode(true);
+      const tileElement = node.querySelector('.level-tile');
+      
       node.querySelector('.level-number').textContent = String(lv.level);
-      node.querySelector('.next-due').textContent = lv.nextDue;
+      node.querySelector('.next-due').textContent = formatRelativeDate(lv.nextDue);
+      
+      // Apply heatmap color class
+      const heatmapClass = getHeatmapClass(lv.nextDue);
+      tileElement.classList.add(heatmapClass);
+      
       const dueBadge = node.querySelector('.due-badge');
       if (lv.nextDue === today) {
         dueBadge.hidden = false;
@@ -367,7 +409,7 @@
   function renderUnifiedSession() {
     const date = activeSessionDate;
     els.sessionPanel.hidden = false;
-    els.sessionTitle.textContent = `Review for ${date}`;
+    els.sessionTitle.textContent = `${date}`;
     els.sessionLevels.innerHTML = '';
 
     // Update progress indicator
@@ -378,14 +420,21 @@
     els.sessionProgress.textContent = `Day ${currentIndex + 1} of ${totalDays}`;
     els.sessionType.textContent = isBacklog ? 'Backlog' : 'Current';
     els.sessionType.className = `session-type-badge ${isBacklog ? 'backlog' : 'current'}`;
+    
+    // Show encouraging subtitle for backlog
+    if (isBacklog) {
+      els.sessionSubtitle.textContent = 'Clearing the path to today...';
+      els.sessionSubtitle.hidden = false;
+    } else {
+      els.sessionSubtitle.hidden = true;
+    }
 
     const dueLevels = state.levels.filter(lv => lv.nextDue === date).sort((a,b)=>a.level-b.level);
     const tpl = sessionLevelTpl.content;
 
     if (dueLevels.length === 0) {
-      // Nothing due for that date -> show Finish/Next Day only
-      els.sessionFinishBtn.hidden = false;
-      els.sessionNextDayBtn.hidden = currentIndex + 1 >= totalDays;
+      // Nothing due for that date -> enable next button
+      updateSessionButtons(true);
       return;
     }
 
@@ -394,17 +443,15 @@
       node.querySelector('.level-number').textContent = String(lv.level);
       const markBtn = node.querySelector('.markBtn');
       const undoBtn = node.querySelector('.undoBtn');
-      const doneTag = node.querySelector('.doneTag');
+      const doneState = node.querySelector('.level-done-state');
 
       const alreadyDone = (lv.lastCompleted === date);
       if (alreadyDone) {
         markBtn.hidden = true;
-        undoBtn.hidden = false;
-        doneTag.hidden = false;
+        doneState.hidden = false;
       } else {
         markBtn.hidden = false;
-        undoBtn.hidden = true;
-        doneTag.hidden = true;
+        doneState.hidden = true;
       }
 
       // Mark done functionality
@@ -413,8 +460,7 @@
           save();
           
           markBtn.hidden = true;
-          undoBtn.hidden = false;
-          doneTag.hidden = false;
+          doneState.hidden = false;
 
           scheduleRender();
         }
@@ -426,8 +472,7 @@
           save();
           
           markBtn.hidden = false;
-          undoBtn.hidden = true;
-          doneTag.hidden = true;
+          doneState.hidden = true;
 
           scheduleRender();
         }
@@ -437,28 +482,33 @@
     });
     
     checkSessionCompletion();
-
   }
   
-  function checkSessionCompletion() {
+  function updateSessionButtons(allCompleted = null) {
     const date = activeSessionDate;
     const currentIndex = activeReviewQueue.indexOf(date);
     const totalDays = activeReviewQueue.length;
     
-    // Check if all levels for current date are completed
-    const remaining = state.levels.filter(x => x.nextDue === date && x.lastCompleted !== date);
-    const allCompleted = remaining.length === 0;
-    
-    if (allCompleted) {
-      // Show next day button if more dates in queue
-      els.sessionNextDayBtn.hidden = currentIndex + 1 >= totalDays;
-      // Show finish button if this is the last date or no more dates
-      els.sessionFinishBtn.hidden = currentIndex + 1 < totalDays;
-    } else {
-      // Hide both buttons if current date is not complete
-      els.sessionNextDayBtn.hidden = true;
-      els.sessionFinishBtn.hidden = true;
+    // Check completion if not provided
+    if (allCompleted === null) {
+      const remaining = state.levels.filter(x => x.nextDue === date && x.lastCompleted !== date);
+      allCompleted = remaining.length === 0;
     }
+    
+    // Next button: enabled only when all levels are complete
+    const hasMoreDays = currentIndex + 1 < totalDays;
+    els.sessionNextBtn.disabled = !allCompleted;
+    
+    // Update button text based on whether there are more days
+    if (hasMoreDays) {
+      els.sessionNextBtn.textContent = 'Next ▶';
+    } else {
+      els.sessionNextBtn.textContent = 'Finish ✓';
+    }
+  }
+  
+  function checkSessionCompletion() {
+    updateSessionButtons();
   }
   
   function moveToNextReviewDate() {
@@ -477,7 +527,14 @@
     activeSessionDate = null;
     activeReviewQueue = [];
     els.sessionPanel.hidden = true;
+    
+    // Calculate day count for celebration
+    const start = state.settings.startDate;
+    const today = todayStr();
+    const dayN = diffDays(start, today) + 1;
+    
     render();
+    showSuccessMessage(`✓ All reviews done! See you tomorrow. (Day ${dayN})`);
   }
   
   function startUnifiedReview() {
@@ -498,10 +555,6 @@
     renderHeader();
     renderStatus();
     renderBoard();
-
-    // session controls default
-    els.sessionFinishBtn.hidden = true;
-    els.sessionNextDayBtn.hidden = true;
   }
   
 
@@ -567,16 +620,19 @@
     startUnifiedReview();
   });
 
-  els.sessionStopBtn?.addEventListener('click', () => {
-    finishAllReviews();
-  });
-
-  els.sessionNextDayBtn?.addEventListener('click', () => {
-    moveToNextReviewDate();
-  });
-
   els.sessionFinishBtn?.addEventListener('click', () => {
     finishAllReviews();
+  });
+
+  els.sessionNextBtn?.addEventListener('click', () => {
+    const currentIndex = activeReviewQueue.indexOf(activeSessionDate);
+    const hasMoreDays = currentIndex + 1 < activeReviewQueue.length;
+    
+    if (hasMoreDays) {
+      moveToNextReviewDate();
+    } else {
+      finishAllReviews();
+    }
   });
 
   // On load, set theme select
