@@ -35,38 +35,41 @@
     <!-- Success message -->
     <section id="successMessage" class="success-banner" hidden></section>
 
-    <!-- Session panel (active date being processed) -->
-    <section id="sessionPanel" class="card session-card" hidden>
-      <div class="session-header">
-        <h2 id="sessionTitle">Review for —</h2>
-        <div class="session-progress">
-          <span id="sessionProgress">Day 1 of 1</span>
-          <span id="sessionType" class="session-type-badge">Current</span>
-          <span id="sessionSubtitle" class="session-subtitle" hidden></span>
-        </div>
-      </div>
-      
-      <div id="sessionLevels" class="session-levels-list"></div>
-      
-      <div class="session-footer">
-        <button id="sessionFinishBtn" class="finish-for-now-btn">Finish for now</button>
-        <button id="sessionNextBtn" class="primary next-btn" disabled>Next ▶</button>
-      </div>
-    </section>
 
-    <!-- Board (overview of levels) -->
-    <section id="board" class="card" hidden>
-      <h2>Schedule</h2>
-      <div id="levelsGrid" class="levels-grid"></div>
-      <div id="emptyToday" class="muted" hidden>You're all caught up.</div>
-    </section>
+    <!-- Undo toaster -->
+    <div id="undoToaster" class="undo-toaster" hidden>
+      <span id="undoMessage"></span>
+      <button id="undoBtn" class="undo-toaster-btn">Undo</button>
+    </div>
+
+    <!-- Sectioned Level Grid -->
+    <div id="sectionedGrid">
+      <!-- Next Up Section -->
+      <section id="nextUpSection" class="grid-section" hidden>
+        <h2 class="section-header">Next Up</h2>
+        <div id="nextUpGrid" class="section-grid"></div>
+      </section>
+
+      <!-- Others Due Section -->
+      <section id="othersDueSection" class="grid-section" hidden>
+        <h2 class="section-header">Others Due</h2>
+        <div id="othersDueGrid" class="section-grid"></div>
+      </section>
+
+      <!-- Caught Up Section -->
+      <section id="caughtUpSection" class="grid-section" hidden>
+        <h2 class="section-header">Caught up, see you tomorrow!</h2>
+        <div id="caughtUpGrid" class="section-grid"></div>
+      </section>
+
+      <!-- All Caught Up State -->
+      <section id="allCaughtUpState" class="all-caught-up-card" hidden>
+        <h2>Caught up, see you tomorrow!</h2>
+        <p class="muted">All levels are scheduled for future dates.</p>
+      </section>
+    </div>
   </main>
 
-  <footer class="app-footer">
-    <div class="footer-actions">
-      <button id="reviewBtn" class="primary" hidden>Start reviews</button>
-    </div>
-  </footer>
 
   <!-- Settings modal -->
   <dialog id="settingsDialog">
@@ -103,26 +106,18 @@
       <div class="level-head">
         <span class="level-badge">L<span class="level-number"></span></span>
         <span class="due-badge" hidden>Due today</span>
+        <span class="past-due-badge" hidden>Past Due</span>
       </div>
       <div class="level-body">
         <div class="dates">
           <div class="label">Next due</div>
           <div class="value next-due"></div>
         </div>
+        <button class="mark-done-btn primary" hidden>Mark as Done</button>
       </div>
     </div>
   </template>
 
-  <template id="sessionLevelTemplate">
-    <div class="session-level-item">
-      <span class="level-badge">L<span class="level-number"></span></span>
-      <button class="markBtn primary mark-done-btn">Mark done</button>
-      <div class="level-done-state" hidden>
-        <span class="done-checkmark">✓</span>
-        <button class="undoBtn undo-btn">⟲</button>
-      </div>
-    </div>
-  </template>
 
   <script src="/app.js"></script>
   <script>

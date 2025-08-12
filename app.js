@@ -3,45 +3,45 @@
 
   const STORAGE_KEY = 'leitnerScheduleV2';
   const INTERVALS = [1, 2, 4, 8, 16, 32, 64]; // for levels 1..7
-  const CURRENT_VERSION = 2;
+  const CURRENT_VERSION = 3;
 
   // Elements
   const els = {
     dayCounter: document.getElementById('dayCounter'),
-    reviewBtn: document.getElementById('reviewBtn'),
-
     settingsBtn: document.getElementById('settingsBtn'),
     welcome: document.getElementById('welcome'),
     startScheduleBtn: document.getElementById('startScheduleBtn'),
     status: document.getElementById('status'),
     successMessage: document.getElementById('successMessage'),
-    board: document.getElementById('board'),
-    levelsGrid: document.getElementById('levelsGrid'),
-    emptyToday: document.getElementById('emptyToday'),
-    sessionPanel: document.getElementById('sessionPanel'),
-    sessionTitle: document.getElementById('sessionTitle'),
-    sessionLevels: document.getElementById('sessionLevels'),
-    sessionFinishBtn: document.getElementById('sessionFinishBtn'),
-    sessionNextBtn: document.getElementById('sessionNextBtn'),
-    sessionProgress: document.getElementById('sessionProgress'),
-    sessionType: document.getElementById('sessionType'),
-    sessionSubtitle: document.getElementById('sessionSubtitle'),
+    
+    // Sectioned Grid
+    sectionedGrid: document.getElementById('sectionedGrid'),
+    nextUpSection: document.getElementById('nextUpSection'),
+    nextUpGrid: document.getElementById('nextUpGrid'),
+    othersDueSection: document.getElementById('othersDueSection'),
+    othersDueGrid: document.getElementById('othersDueGrid'),
+    caughtUpSection: document.getElementById('caughtUpSection'),
+    caughtUpGrid: document.getElementById('caughtUpGrid'),
+    allCaughtUpState: document.getElementById('allCaughtUpState'),
+    
+    // Undo Toaster
+    undoToaster: document.getElementById('undoToaster'),
+    undoMessage: document.getElementById('undoMessage'),
+    undoBtn: document.getElementById('undoBtn'),
+    
+    // Settings
     settingsDialog: document.getElementById('settingsDialog'),
     themeSelect: document.getElementById('themeSelect'),
     resetBtn: document.getElementById('resetBtn'),
     exportBtn: document.getElementById('exportBtn'),
     importInput: document.getElementById('importInput'),
-    appFooter: document.querySelector('.app-footer'),
   };
 
   // Templates
   const levelTileTpl = document.getElementById('levelTileTemplate');
-  const sessionLevelTpl = document.getElementById('sessionLevelTemplate');
 
   // State
   let state = null; // { settings, levels, log }
-  let activeSessionDate = null; // YYYY-MM-DD when processing a day
-  let activeReviewQueue = []; // Array of dates in chronological order for current review session
 
   // --- Date helpers ---
   function toDate(str) {
@@ -143,6 +143,11 @@
       data.settings.version = 2;
     }
     
+    // Migration from v2 to v3: no data changes needed, just version bump
+    if (currentVersion < 3) {
+      data.settings.version = 3;
+    }
+    
     return data;
   }
 
@@ -173,7 +178,9 @@
     const originalDue = level.nextDue;
     
     level.lastCompleted = sessionDate;
-    level.nextDue = addDays(sessionDate, interval);
+    // CORRECTED: Next due date should be the *previous* due date + interval
+    // This implements proper Leitner box behavior where you work through backlogs
+    level.nextDue = addDays(originalDue, interval);
     
     state.log.push({
       date: sessionDate,
@@ -186,33 +193,6 @@
     return true;
   }
   
-  function undoLevelCompletion(levelNumber, sessionDate) {
-    const level = state.levels.find(lv => lv.level === levelNumber);
-    if (!level) return false;
-    
-    // Find the most recent completion log for this level/date
-    const logEntries = state.log.filter(entry => 
-      entry.date === sessionDate && 
-      entry.level === levelNumber && 
-      entry.action === 'done'
-    ).sort((a, b) => b.ts - a.ts); // Most recent first
-    
-    if (logEntries.length > 0) {
-      const latestEntry = logEntries[0];
-      // Restore original due date from log
-      level.nextDue = latestEntry.originalDue || sessionDate;
-      level.lastCompleted = null;
-      
-      // Remove the log entry
-      const logIndex = state.log.indexOf(latestEntry);
-      if (logIndex !== -1) {
-        state.log.splice(logIndex, 1);
-      }
-      return true;
-    }
-    
-    return false;
-  }
 
   // --- Success Messages ---
   function showSuccessMessage(text, duration = 4000) {
@@ -223,19 +203,75 @@
     }, duration);
   }
   
-  // --- Rendering Optimization ---
-  let renderTimeout = null;
-  function scheduleRender() {
-    if (renderTimeout) return; // Already scheduled
+  // --- Undo Functionality ---
+  let undoTimeout = null;
+  let undoAction = null;
+  
+  function showUndoToaster(message, undoCallback, duration = 5000) {
+    // Clear any existing undo
+    if (undoTimeout) {
+      clearTimeout(undoTimeout);
+      undoTimeout = null;
+    }
     
-    renderTimeout = requestAnimationFrame(() => {
-      renderHeader();
-      renderStatus();
-      renderBoard();
-      checkSessionCompletion();
-      renderTimeout = null;
+    els.undoMessage.textContent = message;
+    els.undoToaster.hidden = false;
+    undoAction = undoCallback;
+    
+    undoTimeout = setTimeout(() => {
+      hideUndoToaster();
+    }, duration);
+  }
+  
+  function hideUndoToaster() {
+    els.undoToaster.hidden = true;
+    undoAction = null;
+    if (undoTimeout) {
+      clearTimeout(undoTimeout);
+      undoTimeout = null;
+    }
+  }
+  
+  function executeUndo() {
+    if (undoAction) {
+      undoAction();
+      hideUndoToaster();
+    }
+  }
+  
+  // --- Level Actions ---
+  function markLevelDone(level) {
+    const today = todayStr();
+    const originalDue = level.nextDue;
+    
+    // Update level
+    const success = markLevelCompleted(level.level, today);
+    if (!success) return;
+    
+    save();
+    render();
+    
+    // Show undo toaster
+    showUndoToaster(`Level ${level.level} marked done`, () => {
+      // Undo action
+      level.nextDue = originalDue;
+      level.lastCompleted = null;
+      
+      // Remove the log entry
+      const logIndex = state.log.findIndex(entry => 
+        entry.date === today && 
+        entry.level === level.level && 
+        entry.action === 'done'
+      );
+      if (logIndex !== -1) {
+        state.log.splice(logIndex, 1);
+      }
+      
+      save();
+      render();
     });
   }
+  
 
   // --- Theme ---
   function applyTheme(theme) {
@@ -282,279 +318,183 @@
     showSuccessMessage('Schedule created. First review due today.');
   }
 
-  // --- Backlog & Due computation ---
-  function getBacklogDates() {
-    const today = todayStr();
-    const set = new Set();
-    state.levels.forEach(lv => {
-      if (lv.nextDue < today) set.add(lv.nextDue);
+  // --- Level Sorting & Section Assignment ---
+  function getSortedLevels() {
+    // Sort by nextDue ascending, then by level number ascending
+    return [...state.levels].sort((a, b) => {
+      if (a.nextDue !== b.nextDue) {
+        return a.nextDue.localeCompare(b.nextDue);
+      }
+      return a.level - b.level;
     });
-    return Array.from(set).sort();
   }
   
-  function getReviewQueue() {
-    const backlogDates = getBacklogDates();
+  function getSectionedLevels() {
     const today = todayStr();
-    const queue = [...backlogDates];
+    const sortedLevels = getSortedLevels();
     
-    // Add today if it has due levels and isn't already in backlog
-    if (anyDueToday() && !backlogDates.includes(today)) {
-      queue.push(today);
+    const sections = {
+      nextUp: [],
+      othersDue: [],
+      caughtUp: []
+    };
+    
+    // Split levels by due status
+    const dueLevels = sortedLevels.filter(lv => lv.nextDue <= today);
+    const futureLevels = sortedLevels.filter(lv => lv.nextDue > today);
+    
+    // Next Up: earliest due level only
+    if (dueLevels.length > 0) {
+      sections.nextUp = [dueLevels[0]];
+      sections.othersDue = dueLevels.slice(1);
     }
     
-    return queue.sort(); // Chronological order
+    sections.caughtUp = futureLevels;
+    
+    return sections;
   }
-  function getDueTodayLevels(forDate) {
-    const date = forDate || todayStr();
-    return state.levels.filter(lv => lv.nextDue === date);
-  }
-  function anyDueToday() {
-    return getDueTodayLevels().length > 0;
-  }
+  
 
   // --- Rendering ---
   function showWelcome() {
     document.querySelector('main').hidden = false;
     els.welcome.hidden = false;
-    els.board.hidden = true;
+    els.sectionedGrid.hidden = true;
     els.status.hidden = true;
-    els.sessionPanel.hidden = true;
-    els.reviewBtn.hidden = true;
+    els.undoToaster.hidden = true;
     els.dayCounter.textContent = '';
-    updateFooterVisibility();
-  }
-
-  function updateFooterVisibility() {
-    // Show footer if any action button is visible
-    const hasVisibleActions = !els.reviewBtn.hidden;
-    
-    if (hasVisibleActions) {
-      els.appFooter.classList.add('show');
-      document.body.classList.add('has-footer-actions');
-    } else {
-      els.appFooter.classList.remove('show');
-      document.body.classList.remove('has-footer-actions');
-    }
   }
 
   function renderHeader() {
     if (!state || !state.settings.startDate) {
       els.dayCounter.textContent = '';
-      els.reviewBtn.hidden = true;
-      updateFooterVisibility();
       return;
     }
     const start = state.settings.startDate;
     const today = todayStr();
     const dayN = diffDays(start, today) + 1;
     els.dayCounter.textContent = `Today: ${today} — Day ${dayN}`;
-
-    // Single button logic - show if there are any reviews (backlog or current)
-    const hasReviews = anyDueToday() || getBacklogDates().length > 0;
-    els.reviewBtn.hidden = !hasReviews;
-    
-    updateFooterVisibility();
   }
 
   function renderStatus() {
-    const backlog = getBacklogDates();
-    const today = todayStr();
-    if (backlog.length > 0) {
-      const oldest = backlog[0];
-      const days = backlog.length;
+    const sections = getSectionedLevels();
+    const hasDue = sections.nextUp.length > 0 || sections.othersDue.length > 0;
+    
+    if (hasDue) {
+      const totalDue = sections.nextUp.length + sections.othersDue.length;
       els.status.hidden = false;
-      els.status.textContent = `You have ${days} day${days>1?'s':''} pending. Start from oldest: ${oldest}.`;
+      els.status.textContent = `${totalDue} level${totalDue > 1 ? 's' : ''} due. Complete them in order.`;
     } else {
-      // Show a gentle status: either due levels today or all caught up
-      const due = getDueTodayLevels(today);
-      if (due.length > 0) {
-        els.status.hidden = false;
-        const list = due.map(l => `L${l.level}`).join(', ');
-        els.status.textContent = `Due today: ${list}.`;
-      } else {
-        els.status.hidden = false;
-        els.status.textContent = `All caught up.`;
-      }
+      els.status.hidden = true;
     }
   }
 
-  function renderBoard() {
-    els.board.hidden = false;
-    els.levelsGrid.innerHTML = '';
+  function createLevelTile(level, isActionable = false) {
     const tpl = levelTileTpl.content;
+    const node = tpl.cloneNode(true);
+    const tileElement = node.querySelector('.level-tile');
     const today = todayStr();
-    state.levels.forEach(lv => {
-      const node = tpl.cloneNode(true);
-      const tileElement = node.querySelector('.level-tile');
-      
-      node.querySelector('.level-number').textContent = String(lv.level);
-      node.querySelector('.next-due').textContent = formatRelativeDate(lv.nextDue);
-      
-      // Apply heatmap color class
-      const heatmapClass = getHeatmapClass(lv.nextDue);
-      tileElement.classList.add(heatmapClass);
-      
-      const dueBadge = node.querySelector('.due-badge');
-      if (lv.nextDue === today) {
-        dueBadge.hidden = false;
-      } else {
-        dueBadge.hidden = true;
-      }
-      els.levelsGrid.appendChild(node);
-    });
-
-    els.emptyToday.hidden = anyDueToday();
-  }
-
-  function renderUnifiedSession() {
-    const date = activeSessionDate;
-    els.sessionPanel.hidden = false;
-    els.sessionTitle.textContent = `${date}`;
-    els.sessionLevels.innerHTML = '';
-
-    // Update progress indicator
-    const currentIndex = activeReviewQueue.indexOf(date);
-    const totalDays = activeReviewQueue.length;
-    const isBacklog = date < todayStr();
     
-    els.sessionProgress.textContent = `Day ${currentIndex + 1} of ${totalDays}`;
-    els.sessionType.textContent = isBacklog ? 'Backlog' : 'Current';
-    els.sessionType.className = `session-type-badge ${isBacklog ? 'backlog' : 'current'}`;
+    // Basic tile setup
+    node.querySelector('.level-number').textContent = String(level.level);
+    node.querySelector('.next-due').textContent = formatRelativeDate(level.nextDue);
     
-    // Show encouraging subtitle for backlog
-    if (isBacklog) {
-      els.sessionSubtitle.textContent = 'Clearing the path to today...';
-      els.sessionSubtitle.hidden = false;
+    // Badges
+    const dueBadge = node.querySelector('.due-badge');
+    const pastDueBadge = node.querySelector('.past-due-badge');
+    
+    if (level.nextDue === today) {
+      dueBadge.hidden = false;
+      pastDueBadge.hidden = true;
+    } else if (level.nextDue < today) {
+      dueBadge.hidden = true;
+      pastDueBadge.hidden = false;
     } else {
-      els.sessionSubtitle.hidden = true;
-    }
-
-    const dueLevels = state.levels.filter(lv => lv.nextDue === date).sort((a,b)=>a.level-b.level);
-    const tpl = sessionLevelTpl.content;
-
-    if (dueLevels.length === 0) {
-      // Nothing due for that date -> enable next button
-      updateSessionButtons(true);
-      return;
-    }
-
-    dueLevels.forEach(lv => {
-      const node = tpl.cloneNode(true);
-      node.querySelector('.level-number').textContent = String(lv.level);
-      const markBtn = node.querySelector('.markBtn');
-      const undoBtn = node.querySelector('.undoBtn');
-      const doneState = node.querySelector('.level-done-state');
-
-      const alreadyDone = (lv.lastCompleted === date);
-      if (alreadyDone) {
-        markBtn.hidden = true;
-        doneState.hidden = false;
-      } else {
-        markBtn.hidden = false;
-        doneState.hidden = true;
-      }
-
-      // Mark done functionality
-      markBtn.addEventListener('click', () => {
-        if (markLevelCompleted(lv.level, date)) {
-          save();
-          
-          markBtn.hidden = true;
-          doneState.hidden = false;
-
-          scheduleRender();
-        }
-      });
-
-      // Undo functionality
-      undoBtn.addEventListener('click', () => {
-        if (undoLevelCompletion(lv.level, date)) {
-          save();
-          
-          markBtn.hidden = false;
-          doneState.hidden = true;
-
-          scheduleRender();
-        }
-      });
-
-      els.sessionLevels.appendChild(node);
-    });
-    
-    checkSessionCompletion();
-  }
-  
-  function updateSessionButtons(allCompleted = null) {
-    const date = activeSessionDate;
-    const currentIndex = activeReviewQueue.indexOf(date);
-    const totalDays = activeReviewQueue.length;
-    
-    // Check completion if not provided
-    if (allCompleted === null) {
-      const remaining = state.levels.filter(x => x.nextDue === date && x.lastCompleted !== date);
-      allCompleted = remaining.length === 0;
+      dueBadge.hidden = true;
+      pastDueBadge.hidden = true;
     }
     
-    // Next button: enabled only when all levels are complete
-    const hasMoreDays = currentIndex + 1 < totalDays;
-    els.sessionNextBtn.disabled = !allCompleted;
+    // Apply heatmap color class
+    const heatmapClass = getHeatmapClass(level.nextDue);
+    tileElement.classList.add(heatmapClass);
     
-    // Update button text based on whether there are more days
-    if (hasMoreDays) {
-      els.sessionNextBtn.textContent = 'Next ▶';
+    // Mark Done button (only for actionable tiles)
+    const markDoneBtn = node.querySelector('.mark-done-btn');
+    if (isActionable) {
+      markDoneBtn.hidden = false;
+      markDoneBtn.addEventListener('click', () => markLevelDone(level));
     } else {
-      els.sessionNextBtn.textContent = 'Finish ✓';
+      markDoneBtn.hidden = true;
     }
-  }
-  
-  function checkSessionCompletion() {
-    updateSessionButtons();
-  }
-  
-  function moveToNextReviewDate() {
-    const currentIndex = activeReviewQueue.indexOf(activeSessionDate);
     
-    if (currentIndex + 1 < activeReviewQueue.length) {
-      activeSessionDate = activeReviewQueue[currentIndex + 1];
-      renderUnifiedSession();
-    } else {
-      // All reviews complete
-      finishAllReviews();
-    }
+    return node;
   }
   
-  function finishAllReviews() {
-    activeSessionDate = null;
-    activeReviewQueue = [];
-    els.sessionPanel.hidden = true;
-    
-    // Calculate day count for celebration
-    const start = state.settings.startDate;
+  function renderSectionedGrid() {
+    const sections = getSectionedLevels();
+    const sortedLevels = getSortedLevels();
     const today = todayStr();
-    const dayN = diffDays(start, today) + 1;
     
-    render();
-    showSuccessMessage(`✓ All reviews done! See you tomorrow. (Day ${dayN})`);
-  }
-  
-  function startUnifiedReview() {
-    const queue = getReviewQueue();
-    if (queue.length === 0) return;
+    // Find the absolute first level that should be actionable
+    // This should be the first level in the entire sorted list that is <= today
+    const firstDueLevel = sortedLevels.find(level => level.nextDue <= today);
     
-    activeSessionDate = queue[0];
-    activeReviewQueue = queue;
-    renderUnifiedSession();
+    // Clear all grids
+    els.nextUpGrid.innerHTML = '';
+    els.othersDueGrid.innerHTML = '';
+    els.caughtUpGrid.innerHTML = '';
+    
+    // Always show the grid sections, hide the "all caught up" message
+    els.allCaughtUpState.hidden = true;
+    els.sectionedGrid.hidden = false;
+    
+    // Next Up Section (only the very first due level is actionable)
+    if (sections.nextUp.length > 0) {
+      els.nextUpSection.hidden = false;
+      sections.nextUp.forEach(level => {
+        // Only actionable if this is THE first due level in the entire sorted list
+        const isActionable = firstDueLevel && 
+                            level.level === firstDueLevel.level && 
+                            level.nextDue === firstDueLevel.nextDue;
+        const tile = createLevelTile(level, isActionable);
+        els.nextUpGrid.appendChild(tile);
+      });
+    } else {
+      els.nextUpSection.hidden = true;
+    }
+    
+    // Others Due Section (never actionable)
+    if (sections.othersDue.length > 0) {
+      els.othersDueSection.hidden = false;
+      sections.othersDue.forEach(level => {
+        const tile = createLevelTile(level, false); // never actionable
+        els.othersDueGrid.appendChild(tile);
+      });
+    } else {
+      els.othersDueSection.hidden = true;
+    }
+    
+    // Caught Up Section (never actionable - these are future dates)
+    if (sections.caughtUp.length > 0) {
+      els.caughtUpSection.hidden = false;
+      sections.caughtUp.forEach(level => {
+        const tile = createLevelTile(level, false); // never actionable - future dates
+        els.caughtUpGrid.appendChild(tile);
+      });
+    } else {
+      els.caughtUpSection.hidden = true;
+    }
   }
 
   function render() {
     // main visibility
     els.welcome.hidden = true;
-    els.sessionPanel.hidden = true;
-    els.board.hidden = false;
+    els.sectionedGrid.hidden = false;
+    els.undoToaster.hidden = true; // Ensure undo toaster starts hidden
 
     renderHeader();
     renderStatus();
-    renderBoard();
+    renderSectionedGrid();
   }
   
 
@@ -616,24 +556,7 @@
     }
   });
 
-  els.reviewBtn?.addEventListener('click', () => {
-    startUnifiedReview();
-  });
-
-  els.sessionFinishBtn?.addEventListener('click', () => {
-    finishAllReviews();
-  });
-
-  els.sessionNextBtn?.addEventListener('click', () => {
-    const currentIndex = activeReviewQueue.indexOf(activeSessionDate);
-    const hasMoreDays = currentIndex + 1 < activeReviewQueue.length;
-    
-    if (hasMoreDays) {
-      moveToNextReviewDate();
-    } else {
-      finishAllReviews();
-    }
-  });
+  els.undoBtn?.addEventListener('click', executeUndo);
 
   // On load, set theme select
   function syncThemeSelect() {
@@ -643,13 +566,10 @@
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-      // Recompute header and status if date changed
+      // Recompute display if date changed
       renderHeader();
       renderStatus();
-      renderBoard();
-      if (activeSessionDate) {
-        renderUnifiedSession();
-      }
+      renderSectionedGrid();
     }
   });
 
